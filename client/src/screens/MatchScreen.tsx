@@ -24,6 +24,7 @@ import { VisionLoading } from "../components/VisionLoading";
 import { useWakeLock } from "../game/useWakeLock";
 import { useSettings } from "../game/settings";
 import { sound } from "../audio/sound";
+import { setUpdateBlocked } from "../pwa";
 import { haptic } from "../audio/haptics";
 
 /** Re-render on every animation frame-ish tick (for timers/countdown text). */
@@ -61,6 +62,11 @@ export function MatchScreen({ onExit }: { onExit: () => void }) {
 
   const live = state.phase === "countdown" || state.phase === "playing";
   useWakeLock(live);
+  // Never reload for an app update in the middle of a match.
+  useEffect(() => {
+    setUpdateBlocked(live);
+    return () => setUpdateBlocked(false);
+  }, [live]);
 
   // Camera on for the whole match; off when we leave.
   useEffect(() => {

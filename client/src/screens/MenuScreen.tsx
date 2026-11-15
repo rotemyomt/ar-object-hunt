@@ -45,7 +45,9 @@ export function MenuScreen({ onCreate, onJoin, onCameraCheck, onHowToPlay }: Pro
       </main>
       <footer className="menu-footer">
         <ConnectionPill />
-        <StatusPill tone="idle">v0.1 · Phase 1</StatusPill>
+        <StatusPill tone="idle" testId="version">
+          v{__APP_VERSION__} · {new Date(__BUILD_TIME__).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+        </StatusPill>
       </footer>
     </div>
   );

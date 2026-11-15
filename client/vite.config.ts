@@ -54,8 +54,9 @@ export default defineConfig(({ mode }) => {
       onnxRuntimeAssets(),
       ...(https ? [basicSsl()] : []),
       VitePWA({
-        registerType: "autoUpdate",
-        injectRegister: "auto",
+        // We register the service worker ourselves (src/pwa.ts) to control WHEN updates apply.
+        registerType: "prompt",
+        injectRegister: false,
         includeAssets: ["icons/favicon.svg", "icons/apple-touch-icon.png"],
         manifest: {
           id: base,
@@ -114,6 +115,10 @@ export default defineConfig(({ mode }) => {
         "/socket.io": { target: serverTarget, ws: true, changeOrigin: true },
         "/api": { target: serverTarget, changeOrigin: true },
       },
+    },
+    define: {
+      __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? "1.0.0"),
+      __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
     },
     worker: { format: "es" },
     optimizeDeps: { exclude: ["onnxruntime-web"] },

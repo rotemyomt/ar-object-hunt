@@ -11,6 +11,9 @@ import { CameraProvider } from "./camera/CameraProvider";
 import { ServerProvider } from "./multiplayer/ServerProvider";
 import { RoomProvider } from "./multiplayer/RoomProvider";
 import { SettingsProvider } from "./game/settings";
+import { startPwa } from "./pwa";
+
+startPwa();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
