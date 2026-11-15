@@ -1,0 +1,67 @@
+# Builds the client and publishes it to GitHub Pages on every push to main.
+#
+# One-time setup: repo Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# The site appears at https://<your-username>.github.io/<repo-name>/
+#
+# GitHub Pages is static hosting only: the Node/Socket.IO game server can't run there.
+# Once the server is deployed elsewhere (Phase 2+), add its URL as a repository variable
+# named VITE_SERVER_URL (Settings → Secrets and variables → Actions → Variables) and
+# the Pages build will connect to it.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build client for Pages
+        run: npm run build -w client
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_SERVER_URL: ${{ vars.VITE_SERVER_URL }}
+          VITE_NO_SERVER: ${{ vars.VITE_SERVER_URL == '' && 'true' || 'false' }}
+          DEV_HTTPS: "false"
+
+      # Pages has no SPA routing; serving index.html as the 404 page makes invite links
+      # like /<repo>/join/ABCDE open the app instead of a GitHub error page.
+      - name: SPA fallback
+        run: cp client/dist/index.html client/dist/404.html && touch client/dist/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
