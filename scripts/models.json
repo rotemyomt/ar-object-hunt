@@ -1,0 +1,41 @@
+{
+  "_comment": "On-device vision models, pinned to exact Hugging Face revisions and verified by SHA-256. See README > Object recognition.",
+  "models": [
+    {
+      "name": "detector",
+      "file": "dfine-nano-coco.int8.onnx",
+      "repo": "onnx-community/dfine-nano-coco-ONNX",
+      "revision": "89df95b0e8575ff9879f13351bafe69bbe8e6823",
+      "path": "onnx/model_quantized.onnx",
+      "sha256": "ee34d851a43b1300b73b3a5d16c125de0aa8acc1f0ae7035ca0ee7c86885f51c",
+      "license": "Apache-2.0 (D-FINE, ustc-community/dfine-nano-coco)"
+    },
+    {
+      "name": "detector-fp32",
+      "file": "dfine-nano-coco.fp32.onnx",
+      "repo": "onnx-community/dfine-nano-coco-ONNX",
+      "revision": "89df95b0e8575ff9879f13351bafe69bbe8e6823",
+      "path": "onnx/model.onnx",
+      "sha256": "f7febe9695cd6f71120abbeb0642d3d6b6c6bcc36f0ba1d79b66d302b5860814",
+      "license": "Apache-2.0 (D-FINE, ustc-community/dfine-nano-coco)"
+    },
+    {
+      "name": "embedder",
+      "file": "mobilenet-v2.int8.onnx",
+      "repo": "onnx-community/mobilenet_v2_1.0_224",
+      "revision": "c5903ea5f5bb219f02c85a778af0fedf14f502d8",
+      "path": "onnx/model_quantized.onnx",
+      "sha256": "fa1251c88a258b3f897bf3718f224e29956206a6878f8651d29e474bbff23630",
+      "license": "Apache-2.0 (MobileNetV2, google/mobilenet_v2_1.0_224)"
+    },
+    {
+      "name": "embedder-fp16",
+      "file": "mobilenet-v2.fp16.onnx",
+      "repo": "onnx-community/mobilenet_v2_1.0_224",
+      "revision": "c5903ea5f5bb219f02c85a778af0fedf14f502d8",
+      "path": "onnx/model_fp16.onnx",
+      "sha256": "f2a632385cb709750704deaba489c0051306ed667c7861039d4ae844f488658e",
+      "license": "Apache-2.0 (MobileNetV2, google/mobilenet_v2_1.0_224)"
+    }
+  ]
+}

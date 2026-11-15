@@ -1,0 +1,42 @@
+# Downloads the on-device vision models from Hugging Face at pinned revisions, verifies
+# their SHA-256 checksums, and commits them to client/public/models so the game (and its
+# offline cache) never depends on a third-party CDN at runtime.
+#
+# Runs when this file or scripts/models.json changes, or manually from the Actions tab.
+name: Fetch vision models
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fetch-models.yml
+      - scripts/models.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-models
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download and verify models
+        run: python3 scripts/fetch_models.py
+
+      - name: Commit models if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/public/models
+          if git diff --cached --quiet; then
+            echo "Models already up to date."
+          else
+            git commit -m "Add vision models (pinned, checksum-verified) [skip ci]"
+            git push
+          fi
