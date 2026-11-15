@@ -113,5 +113,6 @@ export const Icon = {
   Help: () => (<svg {...svg}><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3M12 17h.01" /></svg>),
   Shield: () => (<svg {...svg}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>),
   Bolt: () => (<svg {...svg}><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>),
+  Share: () => (<svg {...svg}><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v14" /></svg>),
   Target: () => (<svg {...svg}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>),
 };

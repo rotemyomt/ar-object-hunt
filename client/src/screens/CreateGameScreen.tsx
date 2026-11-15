@@ -4,18 +4,31 @@ import { Icon, NeonButton, ScreenShell } from "../components/ui";
 import { ConnectionPill } from "../components/ConnectionPill";
 import { useSettings } from "../game/settings";
 import { useServer } from "../multiplayer/ServerProvider";
-import { PhaseNotice } from "../components/PhaseNotice";
+import { useRoom } from "../multiplayer/RoomProvider";
+import { sound } from "../audio/sound";
+import { haptic } from "../audio/haptics";
 
 export function CreateGameScreen({ onBack }: { onBack: () => void }) {
   const { playerName, update } = useSettings();
   const { status } = useServer();
+  const { create } = useRoom();
   const [name, setName] = useState(playerName);
-  const [notice, setNotice] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const submit = () => {
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
     update({ playerName: name.trim() });
-    // Phase 2 replaces this with socket.emit("room:create") and navigation to the lobby.
-    setNotice(true);
+    const r = await create(name.trim());
+    setBusy(false);
+    if (!r.ok) {
+      setError(r.message);
+      sound.play("error");
+      haptic("error");
+    }
+    // On success the app switches to the lobby automatically.
   };
 
   return (
@@ -23,8 +36,8 @@ export function CreateGameScreen({ onBack }: { onBack: () => void }) {
       title="Create Game"
       onBack={onBack}
       footer={
-        <NeonButton block icon={<Icon.Plus />} disabled={status !== "online"} onClick={submit}>
-          Create Room
+        <NeonButton block icon={<Icon.Plus />} disabled={status !== "online" || busy} onClick={() => void submit()} data-testid="create-room">
+          {busy ? "Creating…" : "Create Room"}
         </NeonButton>
       }
     >
@@ -37,8 +50,10 @@ export function CreateGameScreen({ onBack }: { onBack: () => void }) {
             maxLength={PLAYER_NAME_MAX}
             placeholder="Player 1"
             autoComplete="nickname"
-            enterKeyHint="done"
+            enterKeyHint="go"
+            data-testid="player-name"
             onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void submit()}
           />
         </label>
         <ul className="feature-list">
@@ -47,10 +62,14 @@ export function CreateGameScreen({ onBack }: { onBack: () => void }) {
           <li><Icon.Shield /> Rooms are temporary and deleted after the match.</li>
         </ul>
       </section>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="center-row">
         <ConnectionPill />
       </div>
-      {notice && <PhaseNotice onClose={() => setNotice(false)} />}
     </ScreenShell>
   );
 }

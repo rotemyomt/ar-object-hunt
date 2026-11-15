@@ -1,0 +1,22 @@
+# Render Blueprint for the AR Object Hunt game server (free plan).
+# Render → New → Blueprint → pick this repo. It builds only the server; the client is on GitHub Pages.
+#
+# Free instances sleep after ~15 min idle; the first connection then takes up to ~1 minute
+# (the app shows "Waking up server…"). Room state is in memory, so keep a single instance.
+services:
+  - type: web
+    name: ar-object-hunt-server
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build -w server
+    startCommand: node server/dist/index.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      # Browser origins allowed to connect (the GitHub Pages site).
+      - key: CORS_ORIGINS
+        value: https://rotemyomt.github.io

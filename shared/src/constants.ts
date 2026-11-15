@@ -15,6 +15,12 @@ export const START_LEAD_MS = 800;
 export const ROOM_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const ROOM_CODE_LENGTH = 5;
 
+/** How long a disconnected player has to come back during a live match before forfeiting. */
+export const MATCH_DISCONNECT_GRACE_MS = 15_000;
+
+/** How long a room survives with nobody connected (outside a match). */
+export const EMPTY_ROOM_TTL_MS = 3 * 60_000;
+
 /** Player display names. */
 export const PLAYER_NAME_MAX = 16;
 

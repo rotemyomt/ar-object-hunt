@@ -4,14 +4,16 @@ import path from "node:path";
 import express from "express";
 import type { ServerConfig } from "./config.js";
 import { createSocketServer, type GameServer } from "./networking/socket.js";
+import { DEFAULT_TIMING, type RoomManager, type Timing } from "./rooms/RoomManager.js";
 
 export interface App {
   http: HttpServer;
   io: GameServer;
+  rooms: RoomManager;
   close: () => Promise<void>;
 }
 
-export function createApp(config: ServerConfig): App {
+export function createApp(config: ServerConfig, timing: Timing = DEFAULT_TIMING): App {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -29,7 +31,9 @@ export function createApp(config: ServerConfig): App {
   });
 
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, serverTime: Date.now(), version: config.version });
+    // CORS-open so the static client (e.g. GitHub Pages) can wake/check a separately hosted server.
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.json({ ok: true, serverTime: Date.now(), version: config.version, rooms: rooms.roomCount });
   });
 
   if (config.production && fs.existsSync(config.clientDist)) {
@@ -54,13 +58,16 @@ export function createApp(config: ServerConfig): App {
   }
 
   const http = createServer(app);
-  const io = createSocketServer(http, config);
+  // `rooms` is referenced by the /api/health handler above; it only runs after this line.
+  const { io, rooms } = createSocketServer(http, config, timing);
 
   return {
     http,
     io,
+    rooms,
     close: () =>
       new Promise<void>((resolve) => {
+        rooms.dispose();
         io.close(() => resolve());
       }),
   };

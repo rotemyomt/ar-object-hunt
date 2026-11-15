@@ -2,10 +2,11 @@
 
 Real-time two-player AR hide-and-seek for phones. Each player registers a physical object, hides it, and hunts for the opponent's object with their camera while a radar sweep blacks out the screen. The first phone to recognise the opponent's object wins.
 
-> **Build status: Phase 1 of 7 (Foundation) is complete.**
-> Working now: the mobile interface, live camera with on-device frame analysis, the PWA (installable, works offline), the server connection with clock sync, and automated tests.
-> Not yet built: rooms and lobby (Phase 2), object recognition (Phase 3), match engine (Phase 4), the sweep obstruction (Phase 5), polish (Phase 6) and deployment hardening (Phase 7).
-> "Create Room" and "Join Room" say plainly that multiplayer arrives in Phase 2. They never fake a room or an opponent.
+> **Build status: Phases 1–2 of 7 complete.**
+> Live: **https://rotemyomt.github.io/ar-object-hunt/**
+> Working now: mobile UI, live camera pipeline, PWA, the server clock, and **real multiplayer**: create a room, join by code, QR or invite link, a live lobby on both phones, reconnection, and ready-state sync.
+> Next: object scanning and recognition (Phase 3), countdown and gameplay screens (Phase 4), the sweep (Phase 5), polish (Phase 6) and launch hardening (Phase 7).
+> Until Phase 3, "Scan My Object" is visibly disabled, so the ready step can't be reached from the UI yet. The server side of readiness is complete and tested.
 
 ---
 
@@ -33,25 +34,35 @@ ar-object-hunt/
 │  └─ obstruction.ts      # Sweep geometry: equal-AREA coverage + visibility mask
 ├─ server/src/
 │  ├─ app.ts              # Express: health check, security headers, static client
-│  ├─ networking/socket.ts# Socket.IO: hello, time:sync (rooms come in Phase 2)
-│  ├─ validation/rateLimit.ts
-│  ├─ rooms/ game-state/  # Phase 2 & 4
+│  ├─ networking/socket.ts# Socket.IO events → RoomManager, per-event rate limits
+│  ├─ rooms/RoomManager.ts# Server-authoritative room & match state machine
+│  ├─ validation/         # Payload validation, rate limiter
 │  └─ index.ts
 ├─ client/
 │  ├─ public/icons/       # PWA icons (regenerate: npm run icons)
 │  └─ src/
 │     ├─ camera/          # CameraProvider, CameraView, FrameSampler, geometry, errors
 │     ├─ vision/          # frameQuality (Phase 3 adds detector + matcher)
-│     ├─ multiplayer/     # ServerProvider: socket + clock sync
+│     ├─ multiplayer/     # ServerProvider (socket + clock), RoomProvider (session, resume)
 │     ├─ game/            # navigation, settings
 │     ├─ audio/           # synthesized SFX (Web Audio), haptics
 │     ├─ components/      # UI kit, radar logo, reticle…
-│     ├─ screens/         # Splash, Menu, HowToPlay, Create, Join, CameraPermission, CameraCheck
+│     ├─ screens/         # Splash, Menu, HowToPlay, Create, Join, Lobby, CameraPermission, CameraCheck
 │     └─ styles/global.css
 ├─ tests/e2e/             # Playwright: real browser, fake camera device
 ├─ playwright.config.ts
 └─ .env.example
 ```
+
+## What Phase 2 delivers (multiplayer)
+
+- **Rooms:** "Create Game" gets a 5-character code from the server. Codes avoid 0/O/1/I/L so they're easy to read aloud. Players join by code, by scanning the QR shown in the lobby, or with an invite link (`…/join/CODE`, shared through the phone's share sheet).
+- **Live lobby on both phones:** each player's name, connection, camera permission, object registration and ready state, all updated in real time.
+- **Membership is authenticated:** joining issues a secret session token. Every room event is checked against the socket's membership, and nobody can act for a seat they don't hold.
+- **Reconnection:** if a phone reloads, switches networks or briefly loses signal, it rejoins its seat automatically using the token saved in the tab. The other phone sees "Reconnecting…" meanwhile, and a full-screen overlay explains what's happening.
+- **Readiness (server side complete):** once both objects are registered, both players press "I'm Ready". The server then fixes one official timeline (`countdownStartsAt`, `matchStartsAt`, `matchEndsAt`) and runs countdown → playing → finished on its own clock. Each phone privately receives its opponent's object signature as its target. Signatures are never broadcast or included in room state.
+- **Fairness rules enforced on the server:** a match ends exactly once, and late timers or duplicate events can't overwrite the result. Leaving or disconnecting for more than 15 s during a match forfeits. Registering a new object resets both players' readiness. Rematch starts a new round.
+- **Abuse protection:** validated payloads (name, code, signature length and finite numbers), per-event rate limits, capped message size, and empty or idle rooms deleted automatically.
 
 ## What Phase 1 delivers
 
@@ -100,6 +111,13 @@ If the certificate warning is a problem (some corporate networks block it), use 
 - **iPhone:** in Safari, tap Share → *Add to Home Screen*.
 - **Android:** in Chrome, open the ⋮ menu → *Install app* (or *Add to Home screen*).
 
+### Hosting with no computer (current setup)
+
+- **Client → GitHub Pages.** `.github/workflows/deploy-pages.yml` builds and publishes on every push to `main`. One-time setup: Settings → Pages → Source: GitHub Actions.
+- **Game server → Render (free).** Render → New → Blueprint → choose this repo; `render.yaml` does the rest. Copy the service URL (e.g. `https://ar-object-hunt-server.onrender.com`).
+- **Connect them:** in GitHub go to Settings → Secrets and variables → Actions → Variables, and add `VITE_SERVER_URL` with that URL. Then re-run the Pages workflow. The server only accepts browsers from the origins in `CORS_ORIGINS`.
+- **Free-plan caveat:** the server sleeps after about 15 minutes of no use. The first player to open the game wakes it, which takes up to a minute, and the app shows "Waking up server…" meanwhile.
+
 ### Production build
 ```bash
 npm run build        # builds client → client/dist, server → server/dist
@@ -114,8 +132,8 @@ In production the Node server serves the built client and Socket.IO from one ori
 
 ```bash
 npm run typecheck    # all three packages
-npm test             # unit tests: shared (11), server (5), client (8)
-npm run build && npm run test:e2e   # 6 end-to-end tests in a real browser
+npm test             # unit + integration: shared (11), server (33), client (8)
+npm run build && npm run test:e2e   # 9 end-to-end tests in real browsers (incl. two-phone sessions)
 ```
 E2E tests need a Chromium browser. Run `npx playwright install chromium` once, or point at an installed Chrome with `CHROME_PATH=/path/to/chrome`. Set `E2E_SCREENSHOTS=/some/dir` to save screenshots of each screen.
 
@@ -129,6 +147,9 @@ What is covered automatically today:
 | Camera | real `getUserMedia` stream (Chrome fake device) → analysis frames at ≥2 fps, cropped and ≤320 px; the camera is fully released on exit; the denied-permission flow shows recovery steps |
 | Server | health check, security headers, malformed-payload rejection, rate limiter |
 | PWA | manifest, all icons, service worker activates |
+| Rooms (server, fake clock) | create/join/full/wrong code, token-only resume, stale-socket handling, host/guest leave, registration → ready_check, un-ready, no start while opponent offline, official timeline, private targets, countdown → playing → timeout, forgiven short disconnect, forfeit on long disconnect or leave, result can't change, rematch, idle cleanup |
+| Multiplayer (real sockets) | two clients join by code and see each other, error codes, signature validation, synchronized ready → identical timestamps on both → timeout → rematch, resume after drop, forged token rejected, host leave closes room, rate limiting |
+| Multiplayer (two browsers) | host + guest phones: lobby on both, camera status relayed, reload → automatic seat resume, host leaves → guest notified; invite link join; third phone refused; offline → reconnect overlay → recovery |
 
 **These need real phones (they can't be verified in CI):** iOS Safari camera-permission UX and autoplay, Samsung Internet, the camera released and resumed when switching apps, haptics (Android only, since iOS has no Vibration API), audio unlock on first tap, and safe-area layout on notched devices. Checklist for Phase 1:
 1. iPhone, Safari: splash → Camera Check → allow. The live rear camera shows and the "Light/Sharp" values change as you move.

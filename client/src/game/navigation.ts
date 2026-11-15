@@ -11,7 +11,8 @@ export type Screen =
   | { name: "create" }
   | { name: "join"; code?: string }
   | { name: "camera-permission"; then: Screen }
-  | { name: "camera-check" };
+  | { name: "camera-check" }
+  | { name: "lobby" };
 
 export type NavAction = { type: "go"; to: Screen } | { type: "back" };
 
@@ -22,8 +23,9 @@ export interface NavState {
 export function navReducer(state: NavState, action: NavAction): NavState {
   switch (action.type) {
     case "go":
-      // Menu is a root: going to it clears history so Back never returns into a stale flow.
+      // Menu and lobby are roots: going to them clears history so Back never returns into a stale flow.
       if (action.to.name === "menu") return { stack: [action.to] };
+      if (action.to.name === "lobby") return { stack: [{ name: "menu" }, action.to] };
       return { stack: [...state.stack, action.to] };
     case "back":
       return state.stack.length > 1 ? { stack: state.stack.slice(0, -1) } : state;

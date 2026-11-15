@@ -90,6 +90,9 @@ p {
   position: fixed;
   inset: 0;
   overflow: hidden;
+  /* clip (unlike hidden) can't be scrolled programmatically, e.g. by focusing an input
+     when the keyboard opens, which would leave the next screen shifted. */
+  overflow: clip;
   /* dvh tracks the real visible height on mobile when browser bars show/hide */
   height: 100dvh;
 }
@@ -115,6 +118,8 @@ p {
 .screen-host {
   position: absolute;
   inset: 0;
+  overflow: hidden;
+  overflow: clip;
 }
 
 .screen {
@@ -161,6 +166,9 @@ p {
 
 .screen-body {
   flex: 1;
+  /* Without min-height:0 a flex child can't shrink below its content, so tall screens
+     overflow the page instead of scrolling here (and push the footer off-screen). */
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   display: flex;
@@ -170,6 +178,7 @@ p {
 }
 
 .screen-footer {
+  flex: none;
   padding-top: 10px;
 }
 
@@ -1037,6 +1046,256 @@ p {
   50% {
     top: 90%;
   }
+}
+
+/* ---------- Forms: errors ---------- */
+
+.form-error {
+  color: var(--bad);
+  font-weight: 600;
+  text-align: center;
+  padding: 0 6px;
+}
+
+/* ---------- Lobby ---------- */
+
+.invite-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.room-code {
+  display: flex;
+  gap: 8px;
+}
+
+.room-code span {
+  width: clamp(44px, 13vw, 56px);
+  aspect-ratio: 0.82;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background: rgba(0, 0, 0, 0.4);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.5rem, 7.5vw, 2.1rem);
+  color: var(--cyan-hi);
+  text-shadow: var(--glow);
+  box-shadow: inset 0 0 14px rgba(0, 229, 255, 0.15);
+}
+
+.qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: screen-in 300ms var(--ease-out) both;
+}
+
+.qr {
+  width: 180px;
+  height: 180px;
+  border-radius: 12px;
+  padding: 8px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line-strong), var(--glow);
+}
+
+.invite-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  width: 100%;
+}
+
+.invite-actions .btn {
+  min-height: 50px;
+  font-size: 0.8rem;
+}
+
+.compact-code {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+}
+
+.compact-code-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: var(--cyan-hi);
+  text-shadow: var(--glow);
+}
+
+.player-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  transition: border-color 250ms, box-shadow 250ms;
+  animation: screen-in 360ms var(--ease-out) both;
+}
+
+.player-card.me {
+  border-color: var(--line-strong);
+}
+
+.player-card.opp {
+  border-color: rgba(255, 61, 203, 0.35);
+}
+
+.player-card.is-ready {
+  border-color: rgba(61, 255, 168, 0.6);
+  box-shadow: 0 0 0 1px rgba(61, 255, 168, 0.25), 0 0 24px rgba(61, 255, 168, 0.15);
+}
+
+.player-card.empty {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.player-avatar {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: #001018;
+  background: linear-gradient(135deg, var(--cyan-hi), var(--blue));
+  box-shadow: var(--glow);
+}
+
+.player-card.opp .player-avatar {
+  background: linear-gradient(135deg, #ff9be6, var(--opponent));
+  box-shadow: 0 0 14px rgba(255, 61, 203, 0.45);
+}
+
+.player-avatar.waiting {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px dashed var(--text-dim);
+  box-shadow: none;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.player-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-info h3 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.you-tag,
+.host-tag {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  padding: 3px 7px;
+  border-radius: 6px;
+}
+
+.you-tag {
+  color: #001018;
+  background: var(--cyan);
+}
+
+.host-tag {
+  color: var(--text-dim);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.player-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.player-status .pill {
+  font-size: 0.8rem;
+  padding: 4px 10px;
+}
+
+.lobby-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lobby-status {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  color: var(--cyan-hi);
+  text-shadow: var(--glow);
+  padding: 6px 0;
+}
+
+.lobby-status.muted {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  color: var(--text-dim);
+  text-shadow: none;
+}
+
+/* ---------- Connection lost ---------- */
+
+.connection-lost {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 4, 8, 0.78);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: fade-in 200ms both;
+}
+
+.connection-lost-card {
+  width: min(100%, 380px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.connection-lost-card h2 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  color: var(--warn);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 229, 255, 0.2);
+  border-top-color: var(--cyan);
+  animation: spin 0.9s linear infinite;
 }
 
 /* ---------- Orientation guard ---------- */

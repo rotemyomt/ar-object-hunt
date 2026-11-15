@@ -39,7 +39,8 @@ test("join screen validates room codes", async ({ page }) => {
   await expect(joinBtn).toBeEnabled();
   await snap(page, "05-join-valid");
   await joinBtn.click();
-  await expect(page.getByTestId("phase-notice")).toBeVisible();
+  // No such room on the server → a clear error, no fake lobby.
+  await expect(page.getByTestId("join-error")).toContainText("No game with that code");
 });
 
 test("invite links prefill the join screen", async ({ page }) => {

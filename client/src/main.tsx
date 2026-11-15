@@ -9,6 +9,7 @@ import "./styles/global.css";
 import { App } from "./App";
 import { CameraProvider } from "./camera/CameraProvider";
 import { ServerProvider } from "./multiplayer/ServerProvider";
+import { RoomProvider } from "./multiplayer/RoomProvider";
 import { SettingsProvider } from "./game/settings";
 
 createRoot(document.getElementById("root")!).render(
@@ -16,7 +17,9 @@ createRoot(document.getElementById("root")!).render(
     <SettingsProvider>
       <ServerProvider>
         <CameraProvider>
-          <App />
+          <RoomProvider>
+            <App />
+          </RoomProvider>
         </CameraProvider>
       </ServerProvider>
     </SettingsProvider>
