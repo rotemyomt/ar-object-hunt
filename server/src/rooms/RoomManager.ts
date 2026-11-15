@@ -6,6 +6,15 @@ import {
   MATCH_DURATION_MS,
   START_LEAD_MS,
   generateRoomCode,
+  DETECTION_GRACE_MS,
+  LOOKALIKE_WARNING,
+  angleForCoveredFraction,
+  decodeDescriptor,
+  objectSimilarity,
+  obstructionProgress,
+  sameGroup,
+  visibleFractionOfBox,
+  type DetectionReport,
   type CameraStatus,
   type ErrorCode,
   type MatchOutcome,
@@ -50,6 +59,7 @@ interface Room {
   round: number;
   lastActivity: number;
   timers: Set<ReturnType<typeof setTimeout>>;
+  lookalike: boolean;
 }
 
 export interface Timing {
@@ -164,6 +174,7 @@ export class RoomManager {
       round: 1,
       lastActivity: this.now(),
       timers: new Set(),
+      lookalike: false,
     };
     this.rooms.set(code, room);
     const player = this.addPlayer(room, 1, name, socketId);
@@ -286,6 +297,45 @@ export class RoomManager {
     return this.toState(room);
   }
 
+  /**
+   * A device reports it has confirmed the opponent's object. Validated against the
+   * server's own clock and the shared sweep geometry; the FIRST valid report processed
+   * wins and ends the match. Node handles events one at a time, so two near-simultaneous
+   * reports are strictly ordered: the second finds the match already decided.
+   */
+  detect(code: string, slot: PlayerSlot, r: DetectionReport): { accepted: boolean; reason?: string; state: RoomState } {
+    const { room, player } = this.member(code, slot);
+    const reject = (reason: string) => ({ accepted: false, reason, state: this.toState(room) });
+    if (room.phase === "finished") return reject("The match is already decided.");
+    if (room.phase !== "playing" || !room.matchStartsAt || !room.matchEndsAt) return reject("The match isn't running.");
+    if (r.round !== room.round) return reject("That detection belongs to a previous round.");
+
+    const t = this.now();
+    if (t > room.matchEndsAt + DETECTION_GRACE_MS) return reject("Too late — time was up.");
+    // Capture time must be inside the match and consistent with the server clock (allowing for clock-sync error).
+    if (r.at < room.matchStartsAt - 250 || r.at > room.matchEndsAt) return reject("Detection was outside the match time.");
+    if (r.at > t + 1000 || t - r.at > 4000) return reject("Detection timestamp is not plausible.");
+
+    const opponent = room.players.get(other(slot));
+    const target = opponent?.registration;
+    if (!target || !player.registration) return reject("No target registered.");
+    if (r.label !== target.label && !sameGroup(r.label, target.label)) return reject("Wrong kind of object.");
+    if (r.hits < 3) return reject("Not enough evidence.");
+    if (r.score < 0.5 || r.score > 1.0001 || r.score - r.ownScore < 0.05) return reject("Match confidence too low.");
+
+    // Fairness: the box must have been in the still-visible part of the screen at capture time.
+    const elapsed = r.at - room.matchStartsAt;
+    const progress = obstructionProgress(elapsed, room.matchEndsAt - room.matchStartsAt);
+    const size = { width: r.view.width, height: r.view.height };
+    const angle = angleForCoveredFraction(progress, size);
+    const px = { x: r.box.x * size.width, y: r.box.y * size.height, width: r.box.w * size.width, height: r.box.h * size.height };
+    // 0.5 rather than the client's 0.6: tolerates ~a few hundred ms of clock-estimate error.
+    if (visibleFractionOfBox(px, size, angle) < 0.5) return reject("The object was behind the sweep.");
+
+    this.finish(room, { kind: "win", winner: slot, reason: "detection" });
+    return { accepted: true, state: this.toState(room) };
+  }
+
   // ---------------------------------------------------------------- queries
 
   stateOf(code: string): RoomState | null {
@@ -326,6 +376,15 @@ export class RoomManager {
     const bothRegistered = players.length === 2 && players.every((p) => p.registration !== null);
     if (room.phase === "lobby" && bothRegistered) room.phase = "ready_check";
     if (room.phase === "ready_check" && !bothRegistered) room.phase = "lobby";
+    room.lookalike = false;
+    if (bothRegistered) {
+      const [a, b] = players.map((p) => p.registration!);
+      const sa = decodeDescriptor(a!.descriptor);
+      const sb = decodeDescriptor(b!.descriptor);
+      if (sa && sb && sameGroup(a!.label, b!.label)) {
+        room.lookalike = Math.max(objectSimilarity(sa, sb), objectSimilarity(sb, sa)) >= LOOKALIKE_WARNING;
+      }
+    }
   }
 
   private resetToLobby(room: Room) {
@@ -352,7 +411,8 @@ export class RoomManager {
         this.changed(room);
       }
     });
-    this.schedule(room, room.matchEndsAt - t, () => {
+    // Detections captured just before the end may still be in flight: allow a short grace.
+    this.schedule(room, room.matchEndsAt - t + DETECTION_GRACE_MS, () => {
       if (room.round === round && (room.phase === "playing" || room.phase === "countdown")) {
         this.finish(room, { kind: "timeout" });
       }
@@ -435,6 +495,7 @@ export class RoomManager {
       outcome: room.outcome,
       version: room.version,
       round: room.round,
+      lookalikeWarning: room.lookalike,
     };
   }
 }

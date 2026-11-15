@@ -12,7 +12,11 @@ export type Screen =
   | { name: "join"; code?: string }
   | { name: "camera-permission"; then: Screen }
   | { name: "camera-check" }
-  | { name: "lobby" };
+  | { name: "lobby" }
+  | { name: "register" }
+  | { name: "match" }
+  | { name: "practice-register" }
+  | { name: "practice" };
 
 export type NavAction = { type: "go"; to: Screen } | { type: "back" };
 

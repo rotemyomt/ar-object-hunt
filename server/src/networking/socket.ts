@@ -18,6 +18,7 @@ import {
   parseCredentials,
   parseJoin,
   parseRegistration,
+  parseDetection,
 } from "../validation/validate.js";
 
 export type GameServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -30,6 +31,7 @@ const LIMITS: Record<string, [number, number]> = {
   time: [20, 10],
   membership: [6, 0.5], // create / join / resume
   status: [20, 4], // camera / ready / register / rematch / leave
+  detect: [5, 2], // a confirmed detection is rare; a flood is abuse
 };
 
 export function createSocketServer(
@@ -40,7 +42,7 @@ export function createSocketServer(
   const io: GameServer = new Server(http, {
     cors: config.corsOrigins.length ? { origin: config.corsOrigins, methods: ["GET", "POST"] } : undefined,
     // Room events are tiny; registration descriptors are the largest payload (~4096 numbers).
-    maxHttpBufferSize: 128 * 1024,
+    maxHttpBufferSize: 256 * 1024,
     pingInterval: 10_000,
     pingTimeout: 8_000,
   });
@@ -195,6 +197,14 @@ export function createSocketServer(
       handle(socket, "status", ack, () => {
         const { roomCode, slot } = requireMember(socket);
         return { state: rooms.rematch(roomCode, slot) };
+      }),
+    );
+
+    socket.on("match:detect", (report, ack) =>
+      handle(socket, "detect", ack, () => {
+        const { roomCode, slot } = requireMember(socket);
+        const r = rooms.detect(roomCode, slot, parseDetection(report));
+        return { accepted: r.accepted, state: r.state, ...(r.reason ? { reason: r.reason } : {}) };
       }),
     );
 

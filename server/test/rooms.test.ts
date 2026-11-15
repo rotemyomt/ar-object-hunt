@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchTarget, RoomState } from "@aoh/shared";
 import { GameError, RoomManager, sanitizeName, type Timing } from "../src/rooms/RoomManager.js";
+import { registration } from "./fixtures.js";
 
 const T: Timing = {
   startLeadMs: 800,
@@ -11,7 +12,7 @@ const T: Timing = {
   idleTimeoutMs: 900_000,
 };
 
-const reg = (label: string, seed: number) => ({ label, descriptor: [seed, seed + 1, seed + 2], views: 3 });
+const reg = (label: string, seed: number) => registration(label, seed);
 
 function setup() {
   const states: RoomState[] = [];
@@ -180,6 +181,8 @@ describe("server-scheduled match", () => {
     vi.advanceTimersByTime(1);
     expect(rm.stateOf(code)!.phase).toBe("playing");
     vi.advanceTimersByTime(60_000);
+    expect(rm.stateOf(code)!.phase).toBe("playing"); // grace window for in-flight detections
+    vi.advanceTimersByTime(750);
     const s = rm.stateOf(code)!;
     expect(s.phase).toBe("finished");
     expect(s.outcome).toEqual({ kind: "timeout" });
@@ -252,5 +255,95 @@ describe("cleanup", () => {
     vi.advanceTimersByTime(T.emptyRoomTtlMs + 1);
     rm.sweep();
     expect(rm.stateOf(code)).not.toBeNull();
+  });
+});
+
+describe("detections (server-authoritative winner)", () => {
+  const view = { width: 400, height: 800 };
+  // Left half stays visible until 50% coverage (sweep starts at 12 o'clock, clockwise).
+  const leftBox = { x: 0.05, y: 0.4, w: 0.3, h: 0.2 };
+  const rightBox = { x: 0.65, y: 0.4, w: 0.3, h: 0.2 };
+  function playing() {
+    const ctx = readyMatch();
+    vi.advanceTimersByTime(T.startLeadMs + T.countdownMs + 1000); // 1 s into the hunt
+    const s = ctx.rm.stateOf(ctx.code)!;
+    expect(s.phase).toBe("playing");
+    const report = (over: Partial<Parameters<RoomManager["detect"]>[2]> = {}) => ({
+      round: s.round,
+      at: Date.now() - 100,
+      label: "cup", // host hunts the guest's cup
+      box: leftBox,
+      view,
+      score: 0.82,
+      ownScore: 0.4,
+      hits: 3,
+      ...over,
+    });
+    return { ...ctx, report };
+  }
+
+  it("a valid detection wins immediately for the reporter", () => {
+    const { rm, code, report } = playing();
+    const r = rm.detect(code, 1, report());
+    expect(r.accepted).toBe(true);
+    expect(r.state.outcome).toEqual({ kind: "win", winner: 1, reason: "detection" });
+  });
+
+  it("near-simultaneous detections: first processed wins, the second is refused", () => {
+    const { rm, code, report } = playing();
+    const a = rm.detect(code, 2, report({ label: "bottle" }));
+    const b = rm.detect(code, 1, report());
+    expect(a.accepted).toBe(true);
+    expect(b.accepted).toBe(false);
+    expect(b.reason).toMatch(/already decided/);
+    expect(rm.stateOf(code)!.outcome).toEqual({ kind: "win", winner: 2, reason: "detection" });
+  });
+
+  it("rejects detections behind the sweep, using the server's geometry and clock", () => {
+    const { rm, code, report } = playing();
+    vi.advanceTimersByTime(30_000); // ~52% covered: the right half is dark
+    expect(rm.detect(code, 1, report({ at: Date.now() - 100, box: rightBox })).reason).toMatch(/behind the sweep/);
+    expect(rm.detect(code, 1, report({ at: Date.now() - 100, box: leftBox })).accepted).toBe(true);
+  });
+
+  it("rejects the wrong category, weak evidence, own-object look-alikes and bad timing", () => {
+    const { rm, code, report } = playing();
+    expect(rm.detect(code, 1, report({ label: "book" })).reason).toMatch(/Wrong kind/);
+    expect(rm.detect(code, 1, report({ hits: 1 })).reason).toMatch(/evidence/);
+    expect(rm.detect(code, 1, report({ score: 0.6, ownScore: 0.58 })).reason).toMatch(/confidence/);
+    expect(rm.detect(code, 1, report({ at: Date.now() + 5000 })).reason).toMatch(/plausible/);
+    expect(rm.detect(code, 1, report({ at: Date.now() - 60_000 })).reason).toMatch(/outside the match/);
+    expect(rm.detect(code, 1, report({ round: 99 })).reason).toMatch(/previous round/);
+    expect(rm.stateOf(code)!.phase).toBe("playing");
+  });
+
+  it("refuses detections during the countdown and after time is up", () => {
+    const { rm, code } = readyMatch();
+    const s = rm.stateOf(code)!;
+    const r = { round: s.round, at: Date.now(), label: "cup", box: leftBox, view, score: 0.9, ownScore: 0.1, hits: 3 };
+    expect(rm.detect(code, 1, r).reason).toMatch(/isn't running/);
+    vi.advanceTimersByTime(T.startLeadMs + T.countdownMs + T.matchDurationMs + 1000);
+    expect(rm.stateOf(code)!.outcome).toEqual({ kind: "timeout" });
+    expect(rm.detect(code, 1, { ...r, at: Date.now() }).accepted).toBe(false);
+  });
+
+  it("accepts a detection that arrives shortly after it was captured", () => {
+    const { rm, code, report } = playing();
+    const s = rm.stateOf(code)!;
+    vi.setSystemTime(s.matchStartsAt! + 10_000);
+    const early = report({ at: Date.now() });
+    vi.setSystemTime(s.matchStartsAt! + 10_500);
+    expect(rm.detect(code, 1, early).accepted).toBe(true);
+  });
+});
+
+describe("lookalike warning", () => {
+  it("flags two very similar objects of the same kind, not different ones", () => {
+    const { rm, code } = twoPlayers();
+    rm.register(code, 1, registration("bottle", 5));
+    rm.register(code, 2, registration("bottle", 5)); // same identity seed → near-identical
+    expect(rm.stateOf(code)!.lookalikeWarning).toBe(true);
+    rm.register(code, 2, registration("bottle", 77));
+    expect(rm.stateOf(code)!.lookalikeWarning).toBe(false);
   });
 });

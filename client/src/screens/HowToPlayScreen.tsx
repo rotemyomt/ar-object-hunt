@@ -1,5 +1,5 @@
 import { NeonButton, ScreenShell } from "../components/ui";
-import { MATCH_DURATION_MS } from "@aoh/shared";
+import { MATCH_DURATION_MS, SUPPORTED_EXAMPLES } from "@aoh/shared";
 
 const STEPS: Array<{ title: string; body: string }> = [
   { title: "Pair up", body: "One player creates a game and shares the room code. The other joins from their own phone — any network works." },
@@ -24,8 +24,18 @@ export function HowToPlayScreen({ onBack }: { onBack: () => void }) {
           </li>
         ))}
       </ol>
+      <section className="card">
+        <h2 className="howto-sub">Objects that work</h2>
+        <p>{SUPPORTED_EXAMPLES.join(" · ")}</p>
+        <ul className="tips">
+          <li>Pick objects that look clearly different from each other (colour helps a lot).</li>
+          <li>Scan in good light, from 3–6 angles, filling about a third of the screen.</li>
+          <li>Try <strong>Camera Check → Test recognition</strong> to see how well your object is recognised.</li>
+        </ul>
+      </section>
       <p className="fineprint">
-        Fair play: you can never win by scanning your own object, and detections hidden behind the sweep don’t count.
+        Fair play: you can never win by scanning your own object, a single lucky frame never counts (3 matching frames are
+        needed), and detections hidden behind the sweep don’t count. The server re-checks every win.
       </p>
     </ScreenShell>
   );

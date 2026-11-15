@@ -44,4 +44,6 @@ export interface RoomState {
   version: number;
   /** Incremented on each rematch so late events from a previous round are rejected. */
   round: number;
+  /** Both registered objects look very similar (fairness warning shown in the lobby). */
+  lookalikeWarning: boolean;
 }

@@ -41,7 +41,8 @@ export interface ObjectRegistration {
   views: number;
 }
 
-export const DESCRIPTOR_MAX_LENGTH = 4096;
+/** 4 header values + up to 6 views × (1280 embedding + 36 colour). */
+export const DESCRIPTOR_MAX_LENGTH = 8192;
 export const LABEL_MAX_LENGTH = 40;
 
 /** Sent privately to each player when a match is scheduled: what they must hunt. */
@@ -52,6 +53,29 @@ export interface MatchTarget {
   /** Your own object — the recogniser uses it to make sure you can't win with it. */
   own: ObjectRegistration;
 }
+
+/**
+ * A device's claim that it has confirmed the opponent's object. The server re-checks
+ * everything it can without seeing video: match phase & round, timing against its own
+ * clock, that the box was outside the sweep obstruction at that moment, multi-frame
+ * evidence, score margins over the player's own object, and category consistency.
+ */
+export interface DetectionReport {
+  round: number;
+  /** Estimated server time (ms) at which the confirming frame was captured. */
+  at: number;
+  label: string;
+  /** Normalised on-screen box of the confirmed detection. */
+  box: { x: number; y: number; w: number; h: number };
+  /** CSS-pixel size of the camera viewport (needed to re-compute the sweep geometry). */
+  view: { width: number; height: number };
+  score: number;
+  ownScore: number;
+  hits: number;
+}
+
+/** Late detections captured before the end may still arrive this long after it. */
+export const DETECTION_GRACE_MS = 750;
 
 export type RoomClosedReason = "idle" | "host_left" | "server_shutdown";
 
@@ -75,6 +99,7 @@ export interface ClientToServerEvents {
   "object:clear": (ack: Ack<{ state: RoomState }>) => void;
   "player:ready": (ready: boolean, ack: Ack<{ state: RoomState }>) => void;
   "match:rematch": (ack: Ack<{ state: RoomState }>) => void;
+  "match:detect": (report: DetectionReport, ack: Ack<{ accepted: boolean; reason?: string; state: RoomState }>) => void;
 }
 
 export interface InterServerEvents {}

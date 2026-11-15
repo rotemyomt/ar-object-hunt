@@ -21,6 +21,9 @@ interface RoomContextValue {
   /** What this player must find, once the server schedules a match. */
   target: MatchTarget | null;
   closedReason: ClosedReason | null;
+  /** Thumbnails of this player's registered object (kept on this device only). */
+  myThumbs: string[];
+  setMyThumbs: (t: string[]) => void;
   /** True while re-attaching to a saved session after a reload / reconnect. */
   resuming: boolean;
   create: (name: string) => Promise<ActionResult>;
@@ -87,6 +90,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<MatchTarget | null>(null);
   const [closedReason, setClosedReason] = useState<ClosedReason | null>(null);
   const [resuming, setResuming] = useState<boolean>(() => loadSession() !== null);
+  const [myThumbs, setMyThumbs] = useState<string[]>([]);
   const sessionRef = useRef<SessionCredentials | null>(loadSession());
 
   const accept = useCallback((next: RoomState) => {
@@ -101,6 +105,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     setSlot(null);
     setTarget(null);
     setResuming(false);
+    setMyThumbs([]);
     if (reason) setClosedReason(reason);
   }, []);
 
@@ -212,8 +217,8 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   const dismissClosed = useCallback(() => setClosedReason(null), []);
 
   const value = useMemo<RoomContextValue>(
-    () => ({ state, slot, target, closedReason, resuming, create, join, leave, setReady, register, clearObject, rematch, dismissClosed }),
-    [state, slot, target, closedReason, resuming, create, join, leave, setReady, register, clearObject, rematch, dismissClosed],
+    () => ({ state, slot, target, closedReason, myThumbs, setMyThumbs, resuming, create, join, leave, setReady, register, clearObject, rematch, dismissClosed }),
+    [state, slot, target, closedReason, myThumbs, resuming, create, join, leave, setReady, register, clearObject, rematch, dismissClosed],
   );
   return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>;
 }

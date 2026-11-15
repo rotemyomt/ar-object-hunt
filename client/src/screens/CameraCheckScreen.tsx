@@ -27,7 +27,7 @@ const VERDICT_TEXT: Record<FrameQuality["verdict"], string> = {
  * Live camera diagnostic: proves the full capture → crop → downscale → analyse pipeline the
  * vision system will use, with real brightness/sharpness measurements from each frame.
  */
-export function CameraCheckScreen({ onBack }: { onBack: () => void }) {
+export function CameraCheckScreen({ onBack, onPractice }: { onBack: () => void; onPractice?: () => void }) {
   const { status, info, error, flip, ensure, stop } = useCamera();
   const { batterySaver, update } = useSettings();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -123,6 +123,11 @@ export function CameraCheckScreen({ onBack }: { onBack: () => void }) {
           >
             <Icon.Bolt /> Battery saver
           </button>
+          {onPractice && (
+            <button type="button" className="toggle" onClick={onPractice} data-testid="practice-start">
+              <Icon.Target /> Test recognition
+            </button>
+          )}
           <IconButton label="Switch camera" onClick={() => void flip()}>
             <Icon.Flip />
           </IconButton>

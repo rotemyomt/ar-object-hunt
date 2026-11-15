@@ -11,6 +11,8 @@ on:
     paths:
       - .github/workflows/fetch-models.yml
       - scripts/models.json
+      - scripts/fetch_models.py
+      - scripts/make_embedder.py
   workflow_dispatch:
 
 permissions:
@@ -28,6 +30,11 @@ jobs:
 
       - name: Download and verify models
         run: python3 scripts/fetch_models.py
+
+      - name: Build the embedding model from MobileNetV2
+        run: |
+          pip install --quiet onnx==1.23.2
+          python3 scripts/make_embedder.py
 
       - name: Commit models if changed
         run: |

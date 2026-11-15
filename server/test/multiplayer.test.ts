@@ -4,6 +4,7 @@ import { io as connect, type Socket } from "socket.io-client";
 import type { AckResult, ClientToServerEvents, MatchTarget, RoomState, ServerToClientEvents, SessionCredentials } from "@aoh/shared";
 import { createApp, type App } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
+import { registration } from "./fixtures.js";
 
 type C = Socket<ServerToClientEvents, ClientToServerEvents>;
 let app: App;
@@ -50,7 +51,7 @@ function nextState(s: C, pred: (st: RoomState) => boolean = () => true, ms = 200
   });
 }
 
-const reg = (label: string) => ({ label, descriptor: Array.from({ length: 64 }, (_, i) => Math.sin(i + label.length)), views: 4 });
+const reg = (label: string) => registration(label, label.length * 7 + 3);
 
 async function pair() {
   const a = await client();
@@ -85,10 +86,15 @@ describe("two players over real sockets", () => {
 
   it("validates registrations", async () => {
     const { a, b } = await pair();
-    const bad = await call((cb) => a.emit("object:register", { label: "bottle", descriptor: [1, Number.NaN], views: 2 }, cb));
+    const good = registration("bottle", 1);
+    const bad = await call((cb) => a.emit("object:register", { ...good, descriptor: [...good.descriptor.slice(0, -1), Number.NaN] }, cb));
     expect(bad).toMatchObject({ ok: false, error: "BAD_REQUEST" });
-    const huge = await call((cb) => a.emit("object:register", { label: "bottle", descriptor: new Array(5000).fill(0), views: 2 }, cb));
+    const huge = await call((cb) => a.emit("object:register", { label: "bottle", descriptor: new Array(9000).fill(0), views: 2 }, cb));
     expect(huge).toMatchObject({ ok: false, error: "BAD_REQUEST" });
+    const unsupported = await call((cb) => a.emit("object:register", { ...good, label: "car" }, cb));
+    expect(unsupported).toMatchObject({ ok: false, message: expect.stringContaining("supported") });
+    const tooFew = await call((cb) => a.emit("object:register", registration("bottle", 2, 2), cb));
+    expect(tooFew).toMatchObject({ ok: false, message: expect.stringContaining("at least 3") });
     a.close();
     b.close();
   });

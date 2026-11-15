@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import type { PlayerSlot, PlayerState, RoomState } from "@aoh/shared";
+import { displayName, type PlayerSlot, type PlayerState, type RoomState } from "@aoh/shared";
+import { useVision } from "../vision/useVision";
+import { VisionLoading } from "../components/VisionLoading";
 import { Icon, NeonButton, ScreenShell, StatusPill } from "../components/ui";
 import { useRoom } from "../multiplayer/RoomProvider";
 import { useCamera } from "../camera/CameraProvider";
@@ -119,7 +121,7 @@ function PlayerCard({ player, slot, isMe }: { player: PlayerState | undefined; s
             {CAMERA_LABEL[player.cameraStatus]}
           </StatusPill>
           <StatusPill tone={player.objectRegistered ? "ok" : "idle"} testId={`p${slot}-object`}>
-            {player.objectRegistered ? `Object: ${player.objectLabel}` : "Object not registered"}
+            {player.objectRegistered ? `Object: ${displayName(player.objectLabel ?? "")}` : "Object not registered"}
           </StatusPill>
           {player.ready && <StatusPill tone="ok" testId={`p${slot}-ready`}>Ready</StatusPill>}
         </div>
@@ -128,9 +130,19 @@ function PlayerCard({ player, slot, isMe }: { player: PlayerState | undefined; s
   );
 }
 
-export function LobbyScreen({ onCameraSetup }: { onCameraSetup: () => void }) {
+export function LobbyScreen({
+  onCameraSetup,
+  onScan,
+  onShowResult,
+}: {
+  onCameraSetup: () => void;
+  onScan: () => void;
+  onShowResult: () => void;
+}) {
   const room = useRoom();
   const camera = useCamera();
+  // Start downloading the recognition models while players chat in the lobby.
+  const visionStatus = useVision(true);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -171,6 +183,9 @@ export function LobbyScreen({ onCameraSetup }: { onCameraSetup: () => void }) {
         <NeonButton block disabled={busy} onClick={() => void act(room.rematch)} data-testid="rematch">
           Rematch
         </NeonButton>
+        <NeonButton block variant="ghost" onClick={onShowResult}>
+          View Result
+        </NeonButton>
       </>
     );
   } else if (!cameraOk) {
@@ -182,14 +197,21 @@ export function LobbyScreen({ onCameraSetup }: { onCameraSetup: () => void }) {
   } else if (!mine?.objectRegistered) {
     footer = (
       <>
-        <div className="lobby-status muted">Object scanning arrives in the next update (Phase 3).</div>
-        <NeonButton block icon={<Icon.Target />} disabled data-testid="scan-object">
+        <div className="lobby-status muted">Pick a bottle, cup, book, phone, toy or similar object you can hide.</div>
+        <NeonButton block icon={<Icon.Target />} onClick={onScan} data-testid="scan-object">
           Scan My Object
         </NeonButton>
       </>
     );
   } else if (state.phase === "lobby") {
-    footer = <div className="lobby-status" data-testid="lobby-status">Object Registered — Waiting for Opponent</div>;
+    footer = (
+      <>
+        <div className="lobby-status" data-testid="lobby-status">Object Registered — Waiting for Opponent</div>
+        <NeonButton block variant="ghost" onClick={onScan}>
+          Rescan Object
+        </NeonButton>
+      </>
+    );
   } else if (!mine.ready) {
     footer = (
       <NeonButton block disabled={busy} sfx="ready" onClick={() => void act(() => room.setReady(true))} data-testid="ready">
@@ -223,6 +245,26 @@ export function LobbyScreen({ onCameraSetup }: { onCameraSetup: () => void }) {
       {!opp?.connected || !opp ? <InviteCard code={state.code} /> : <CompactCode code={state.code} />}
       <PlayerCard player={state.players[1]} slot={1} isMe={me === 1} />
       <PlayerCard player={state.players[2]} slot={2} isMe={me === 2} />
+
+      {mine?.objectRegistered && room.myThumbs.length > 0 && (
+        <section className="card my-object" data-testid="my-object">
+          <span className="field-label">Your object · {displayName(mine.objectLabel ?? "")}</span>
+          <div className="thumbs small">
+            {room.myThumbs.map((t, i) => (
+              <img key={i} src={t} alt={`Angle ${i + 1}`} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {state.lookalikeWarning && (
+        <section className="card warn-card" role="alert" data-testid="lookalike-warning">
+          <strong>Your objects look very similar</strong>
+          <p>Recognition may confuse them. For a fair game, one of you should pick a clearly different object.</p>
+        </section>
+      )}
+
+      {visionStatus.state !== "ready" && visionStatus.state !== "idle" && <VisionLoading status={visionStatus} compact />}
 
       {confirmLeave && (
         <div className="sheet-backdrop" role="dialog" aria-modal="true" onClick={() => setConfirmLeave(false)}>

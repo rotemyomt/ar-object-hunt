@@ -13,6 +13,7 @@ import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "client" / "public" / "models"
+SRC = ROOT / ".cache" / "models"  # build inputs, not shipped
 MANIFEST = json.loads((ROOT / "scripts" / "models.json").read_text())
 
 
@@ -26,8 +27,9 @@ def sha256(path: pathlib.Path) -> str:
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
+    SRC.mkdir(parents=True, exist_ok=True)
     for m in MANIFEST["models"]:
-        dest = OUT / m["file"]
+        dest = (OUT if m.get("dest", "public") == "public" else SRC) / m["file"]
         if dest.exists() and sha256(dest) == m["sha256"]:
             print(f"ok      {m['file']} (cached)")
             continue
